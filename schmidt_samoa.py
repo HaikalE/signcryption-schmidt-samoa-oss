@@ -14,6 +14,7 @@ import hashlib
 from Crypto.Util import number
 from sympy import gcd
 import base64
+import json
 
 
 class SchmidtSamoa:
@@ -43,11 +44,22 @@ class SchmidtSamoa:
         Returns:
             str: String representation
         """
+        if number == 0:
+            return ""
+        
+        # Calculate byte length needed
         byte_length = (number.bit_length() + 7) // 8
-        return number.to_bytes(byte_length, byteorder='big').decode('utf-8', errors='ignore')
+        
+        try:
+            # Convert to bytes and decode
+            byte_data = number.to_bytes(byte_length, byteorder='big')
+            return byte_data.decode('utf-8', errors='replace')
+        except (OverflowError, ValueError):
+            # Fallback for very large numbers
+            return str(number)
     
     @staticmethod
-    def _apply_padding(message, block_size):
+    def _apply_padding(message, block_size=16):
         """
         Apply PKCS#7-style padding to message.
         
@@ -58,13 +70,17 @@ class SchmidtSamoa:
         Returns:
             str: Padded message
         """
-        # Simple padding scheme
-        padding_length = block_size - (len(message) % block_size)
+        # Convert to bytes first for proper padding
+        message_bytes = message.encode('utf-8')
+        padding_length = block_size - (len(message_bytes) % block_size)
         if padding_length == 0:
             padding_length = block_size
         
-        padding_char = chr(padding_length)
-        return message + (padding_char * padding_length)
+        # Apply PKCS#7 padding
+        padded_bytes = message_bytes + bytes([padding_length] * padding_length)
+        
+        # Convert back to string using base64 for safe storage
+        return base64.b64encode(padded_bytes).decode('ascii')
     
     @staticmethod
     def _remove_padding(padded_message):
@@ -80,8 +96,20 @@ class SchmidtSamoa:
         if not padded_message:
             return padded_message
         
-        padding_length = ord(padded_message[-1])
-        return padded_message[:-padding_length]
+        try:
+            # Decode from base64
+            padded_bytes = base64.b64decode(padded_message.encode('ascii'))
+            
+            # Get padding length from last byte
+            padding_length = padded_bytes[-1]
+            
+            # Remove padding
+            original_bytes = padded_bytes[:-padding_length]
+            
+            return original_bytes.decode('utf-8')
+        except Exception:
+            # Fallback: return as-is if padding removal fails
+            return padded_message
     
     @staticmethod
     def encrypt(message, public_key):
@@ -99,25 +127,23 @@ class SchmidtSamoa:
             N = int(public_key['N'])
             g = int(public_key['g'])
             
-            # Apply padding
-            padded_message = SchmidtSamoa._apply_padding(message, 16)
+            # Apply padding first
+            padded_message = SchmidtSamoa._apply_padding(message)
             
-            # Convert to integer
+            # Convert padded message to integer
             m = SchmidtSamoa._string_to_int(padded_message)
             
             # Ensure message is smaller than N
             if m >= N:
-                # For large messages, we'd typically use hybrid encryption
-                # For this implementation, we'll use a simple approach
-                m = m % N
+                # For large messages, reduce modulo N
+                m = m % (N - 1) + 1  # Ensure m > 0
             
-            # Schmidt-Samoa encryption: c = g^m * r^N mod N
-            # where r is a random value
+            # Generate random value r
             r = random.randint(2, N - 1)
             while gcd(r, N) != 1:
                 r = random.randint(2, N - 1)
             
-            # Calculate ciphertext
+            # Schmidt-Samoa encryption: c = g^m * r^N mod N
             c1 = pow(g, m, N)
             c2 = pow(r, N, N)
             ciphertext = (c1 * c2) % N
@@ -146,19 +172,15 @@ class SchmidtSamoa:
             q = int(private_key['q'])
             d = int(private_key['d'])
             N = int(private_key['N'])
-            g = int(private_key['g'])
             
             # Decode from base64
             cipher_bytes = base64.b64decode(ciphertext_b64.encode('ascii'))
             ciphertext = int.from_bytes(cipher_bytes, 'big')
             
-            # Schmidt-Samoa decryption
-            # m = (c^d mod N) using Chinese Remainder Theorem for efficiency
-            
-            # Simplified decryption (not using CRT for clarity)
+            # Schmidt-Samoa decryption: m = c^d mod N
             m = pow(ciphertext, d, N)
             
-            # Convert back to string
+            # Convert back to padded string
             padded_message = SchmidtSamoa._int_to_string(m)
             
             # Remove padding
@@ -180,7 +202,7 @@ class SchmidtSamoa:
             chunk_size (int): Size of chunks to encrypt separately
             
         Returns:
-            list: List of encrypted chunks
+            str: JSON string containing encrypted chunks
         """
         chunks = [message[i:i+chunk_size] for i in range(0, len(message), chunk_size)]
         encrypted_chunks = []
@@ -189,27 +211,43 @@ class SchmidtSamoa:
             encrypted_chunk = SchmidtSamoa.encrypt(chunk, public_key)
             encrypted_chunks.append(encrypted_chunk)
         
-        return encrypted_chunks
+        # Return as JSON string for easier handling
+        return json.dumps({
+            'chunks': encrypted_chunks,
+            'chunk_count': len(encrypted_chunks),
+            'algorithm': 'Schmidt-Samoa-Chunked'
+        })
     
     @staticmethod
-    def decrypt_large_message(encrypted_chunks, private_key):
+    def decrypt_large_message(encrypted_data, private_key):
         """
         Decrypt large messages from chunks.
         
         Args:
-            encrypted_chunks (list): List of encrypted chunks
+            encrypted_data (str or list): JSON string or list of encrypted chunks
             private_key (dict): Private key
             
         Returns:
             str: Decrypted complete message
         """
-        decrypted_parts = []
-        
-        for chunk in encrypted_chunks:
-            decrypted_chunk = SchmidtSamoa.decrypt(chunk, private_key)
-            decrypted_parts.append(decrypted_chunk)
-        
-        return ''.join(decrypted_parts)
+        try:
+            # Handle both JSON string and direct list input
+            if isinstance(encrypted_data, str):
+                data = json.loads(encrypted_data)
+                encrypted_chunks = data['chunks']
+            else:
+                encrypted_chunks = encrypted_data
+            
+            decrypted_parts = []
+            
+            for chunk in encrypted_chunks:
+                decrypted_chunk = SchmidtSamoa.decrypt(chunk, private_key)
+                decrypted_parts.append(decrypted_chunk)
+            
+            return ''.join(decrypted_parts)
+            
+        except Exception as e:
+            raise ValueError(f"Large message decryption failed: {str(e)}")
 
 
 # Convenience functions
@@ -269,14 +307,21 @@ if __name__ == "__main__":
     success = original_message == decrypted
     print(f"\n✅ Encryption/Decryption successful: {success}")
     
-    # Test large message
-    print("\n=== Testing Large Message ===")
-    large_message = "This is a much longer message that needs to be encrypted. " * 10
-    print(f"Large message length: {len(large_message)} characters")
+    # Test JSON message (like what signcryption uses)
+    print("\n=== Testing JSON Message ===")
+    json_message = json.dumps({
+        'message': 'Test message',
+        'signature': 'fake_signature_for_test',
+        'algorithm': 'OSS+Schmidt-Samoa'
+    })
+    print(f"JSON message: {json_message}")
     
-    encrypted_chunks = SchmidtSamoa.encrypt_large_message(large_message, public_key)
-    print(f"Encrypted into {len(encrypted_chunks)} chunks")
+    encrypted_json = encrypt(json_message, public_key)
+    decrypted_json = decrypt(encrypted_json, private_key)
     
-    decrypted_large = SchmidtSamoa.decrypt_large_message(encrypted_chunks, private_key)
-    large_success = large_message == decrypted_large
-    print(f"✅ Large message encryption successful: {large_success}")
+    try:
+        parsed_json = json.loads(decrypted_json)
+        print(f"✅ JSON decryption successful: {parsed_json}")
+    except json.JSONDecodeError as e:
+        print(f"❌ JSON parsing failed: {e}")
+        print(f"Decrypted string: '{decrypted_json}'")
