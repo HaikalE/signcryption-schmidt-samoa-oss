@@ -8,7 +8,7 @@ The security is based on the difficulty of factoring N = p²q.
 Author: Claude (Based on Professional Analysis Memo)
 Date: August 2025
 
-FINAL: Fixed decryption modulo and dependency optimization
+DEFINITIVE: Fixed exponent reduction using Fermat's Little Theorem
 """
 
 import random
@@ -151,12 +151,13 @@ class SchmidtSamoa:
             bytes: Decrypted chunk of EXACT expected_length
         """
         p = int(private_key['p'])
-        q = int(private_key['q'])
         d = int(private_key['d'])
         
-        # CRITICAL FIX: Schmidt-Samoa decryption uses modulo p, not N!
-        # This ensures the result is the original message m, not a congruent value
-        m = pow(ciphertext_int, d, p)
+        # CRITICAL FIX 2.0: The exponent d must be reduced by modulo (p-1)
+        # This is required by Fermat's Little Theorem for the math to hold.
+        d_p = d % (p - 1)
+        
+        m = pow(ciphertext_int, d_p, p)
         
         # Convert back to bytes with EXACT length
         return SchmidtSamoa._int_to_bytes(m, expected_length)
@@ -322,7 +323,7 @@ if __name__ == "__main__":
     # Example usage and testing
     from key_generator import generate_schmidt_samoa_keys
     
-    print("=== Schmidt-Samoa Cryptosystem Demo (FINAL) ===")
+    print("=== Schmidt-Samoa Cryptosystem Demo (DEFINITIVE) ===")
     
     # Generate keys
     print("Generating keys...")
