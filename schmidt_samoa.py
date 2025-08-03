@@ -8,7 +8,7 @@ The security is based on the difficulty of factoring N = p²q.
 Author: Claude (Based on Professional Analysis Memo)
 Date: August 2025
 
-FIXED: Major cryptographic implementation issues based on expert analysis
+FIXED: Byte length consistency and padding validation
 """
 
 import random
@@ -21,29 +21,6 @@ import json
 
 class SchmidtSamoa:
     """Schmidt-Samoa Cryptosystem implementation."""
-    
-    @staticmethod
-    def _calculate_safe_chunk_size(private_key):
-        """
-        Calculate safe chunk size based on the smallest prime factor.
-        
-        Args:
-            private_key (dict): Private key containing p, q
-            
-        Returns:
-            int: Safe chunk size in bytes
-        """
-        p = int(private_key['p'])
-        q = int(private_key['q'])
-        
-        # Use the smaller prime to ensure safety
-        min_prime = min(p, q)
-        
-        # Safe chunk size: (bits - 8) / 8 to leave room for padding
-        safe_bits = min_prime.bit_length() - 8
-        safe_bytes = max(1, safe_bits // 8)
-        
-        return safe_bytes
     
     @staticmethod
     def _bytes_to_int(data_bytes):
@@ -63,22 +40,22 @@ class SchmidtSamoa:
     @staticmethod
     def _int_to_bytes(number, byte_length):
         """
-        Convert integer back to bytes.
+        Convert integer back to a byte string of a fixed length.
+        Pads with leading zeros if necessary.
         
         Args:
             number (int): Integer to convert
-            byte_length (int): Expected byte length
+            byte_length (int): EXACT byte length required
             
         Returns:
-            bytes: Byte representation
+            bytes: Byte representation of exact length
         """
-        if number == 0:
-            return b'\x00' * byte_length
-        
-        actual_length = (number.bit_length() + 7) // 8
-        target_length = max(byte_length, actual_length)
-        
-        return number.to_bytes(target_length, byteorder='big')
+        try:
+            return number.to_bytes(byte_length, byteorder='big')
+        except OverflowError:
+            # Error ini menandakan angka hasil dekripsi lebih besar dari
+            # ruang yang disediakan, yang menunjukkan kegagalan kriptografi.
+            raise ValueError(f"Decrypted number is too large for the expected byte size of {byte_length}.")
     
     @staticmethod
     def _apply_pkcs7_padding(data_bytes, block_size=16):
@@ -171,7 +148,7 @@ class SchmidtSamoa:
             expected_length (int): Expected byte length of decrypted chunk
             
         Returns:
-            bytes: Decrypted chunk
+            bytes: Decrypted chunk of EXACT expected_length
         """
         p = int(private_key['p'])
         q = int(private_key['q'])
@@ -181,7 +158,7 @@ class SchmidtSamoa:
         # Schmidt-Samoa decryption: m = c^d mod N
         m = pow(ciphertext_int, d, N)
         
-        # Convert back to bytes
+        # Convert back to bytes with EXACT length
         return SchmidtSamoa._int_to_bytes(m, expected_length)
     
     @staticmethod
@@ -203,11 +180,14 @@ class SchmidtSamoa:
             # Apply PKCS#7 padding
             padded_bytes = SchmidtSamoa._apply_pkcs7_padding(message_bytes)
             
-            # We need private key info to calculate safe chunk size
-            # For now, use a conservative approach based on public key
-            N = int(public_key['N'])
-            # Conservative chunk size: use much smaller chunks to be safe
-            safe_chunk_size = min(100, (N.bit_length() // 8) // 4)
+            # Get safe chunk size from public key (if available) or calculate conservatively
+            if 'safe_chunk_size' in public_key:
+                safe_chunk_size = int(public_key['safe_chunk_size'])
+            else:
+                # Conservative fallback calculation
+                N = int(public_key['N'])
+                safe_chunk_size = min(50, (N.bit_length() // 8) // 8)  # Very conservative
+                safe_chunk_size = max(1, safe_chunk_size)  # At least 1 byte
             
             # Split into chunks
             chunks = []
