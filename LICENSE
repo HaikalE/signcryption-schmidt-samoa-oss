@@ -1,0 +1,41 @@
+MIT License
+
+Copyright (c) 2025 Signcryption System Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORES OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+IMPORTANT SECURITY DISCLAIMER:
+
+This software implements the Ong-Schnorr-Shamir (OSS) digital signature scheme,
+which is CRYPTOGRAPHICALLY BROKEN and vulnerable to signature forgery attacks.
+This implementation is provided for EDUCATIONAL PURPOSES ONLY.
+
+DO NOT USE THIS SOFTWARE FOR ANY SECURITY-CRITICAL APPLICATIONS.
+
+For production use, employ industry-standard cryptographic algorithms such as:
+- RSA with appropriate padding (PKCS#1 v2.0/OAEP)
+- Elliptic Curve Cryptography (ECC)
+- ECDSA or EdDSA for digital signatures
+- AES for symmetric encryption
+
+The authors and contributors disclaim any responsibility for security
+vulnerabilities, data breaches, or other damages that may result from
+improper use of this educational software.
