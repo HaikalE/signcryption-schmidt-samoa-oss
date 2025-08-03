@@ -9,6 +9,8 @@ This module provides functions to generate key pairs for both:
 Author: Claude (Based on Professional Analysis Memo)
 Date: August 2025
 Warning: OSS signature scheme is cryptographically insecure!
+
+UPDATED: Now includes safe_chunk_size in keys for robust chunking
 """
 
 import random
@@ -72,11 +74,17 @@ class KeyGenerator:
             # If inverse doesn't exist, regenerate
             return self.generate_schmidt_samoa_keys()
         
+        # Calculate safe chunk size based on smaller prime
+        # This ensures encrypted integers m are always < p and < q
+        min_prime = min(p, q)
+        safe_chunk_size = max(1, (min_prime.bit_length() - 16) // 8)  # Leave room for safety
+        
         public_key = {
             'algorithm': 'Schmidt-Samoa',
             'N': str(N),
             'g': str(g),
-            'key_size': self.key_size
+            'key_size': self.key_size,
+            'safe_chunk_size': safe_chunk_size  # NEW: Safe chunking parameter
         }
         
         private_key = {
@@ -86,10 +94,12 @@ class KeyGenerator:
             'd': str(d),
             'N': str(N),
             'g': str(g),
-            'key_size': self.key_size
+            'key_size': self.key_size,
+            'safe_chunk_size': safe_chunk_size  # NEW: Safe chunking parameter
         }
         
         print(f"Schmidt-Samoa keys generated (N size: {N.bit_length()} bits)")
+        print(f"Safe chunk size: {safe_chunk_size} bytes")
         return public_key, private_key
     
     def generate_oss_keys(self):
@@ -212,6 +222,7 @@ if __name__ == "__main__":
     ss_pub, ss_priv = generate_schmidt_samoa_keys(2048)
     print("\nSchmidt-Samoa Public Key:")
     print(f"N: {ss_pub['N'][:50]}...")
+    print(f"Safe chunk size: {ss_pub['safe_chunk_size']} bytes")
     
     # Generate OSS keys
     oss_pub, oss_priv = generate_oss_keys(2048)
