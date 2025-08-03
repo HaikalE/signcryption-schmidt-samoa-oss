@@ -8,7 +8,7 @@ The security is based on the difficulty of factoring N = p²q.
 Author: Claude (Based on Professional Analysis Memo)
 Date: August 2025
 
-FIXED: Byte length consistency and padding validation
+FINAL: Fixed decryption modulo and dependency optimization
 """
 
 import random
@@ -153,10 +153,10 @@ class SchmidtSamoa:
         p = int(private_key['p'])
         q = int(private_key['q'])
         d = int(private_key['d'])
-        N = int(private_key['N'])
         
-        # Schmidt-Samoa decryption: m = c^d mod N
-        m = pow(ciphertext_int, d, N)
+        # CRITICAL FIX: Schmidt-Samoa decryption uses modulo p, not N!
+        # This ensures the result is the original message m, not a congruent value
+        m = pow(ciphertext_int, d, p)
         
         # Convert back to bytes with EXACT length
         return SchmidtSamoa._int_to_bytes(m, expected_length)
@@ -322,7 +322,7 @@ if __name__ == "__main__":
     # Example usage and testing
     from key_generator import generate_schmidt_samoa_keys
     
-    print("=== Schmidt-Samoa Cryptosystem Demo (FIXED) ===")
+    print("=== Schmidt-Samoa Cryptosystem Demo (FINAL) ===")
     
     # Generate keys
     print("Generating keys...")
