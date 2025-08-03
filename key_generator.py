@@ -10,14 +10,14 @@ Author: Claude (Based on Professional Analysis Memo)
 Date: August 2025
 Warning: OSS signature scheme is cryptographically insecure!
 
-UPDATED: Now includes safe_chunk_size in keys for robust chunking
+FINAL: Optimized dependencies - removed sympy, using built-in pow for modular inverse
 """
 
 import random
 import json
 from pathlib import Path
 from Crypto.Util import number
-from sympy import gcd, mod_inverse
+from math import gcd  # Using math.gcd instead of sympy
 import hashlib
 
 
@@ -67,9 +67,10 @@ class KeyGenerator:
         while gcd(g, N) != 1:
             g = random.randint(2, N - 1)
         
-        # Calculate private exponent d
+        # Calculate private exponent d using built-in pow for modular inverse
+        # pow(N, -1, lcm_val) is equivalent to mod_inverse(N, lcm_val)
         try:
-            d = mod_inverse(N, lcm_val)
+            d = pow(N, -1, lcm_val)
         except ValueError:
             # If inverse doesn't exist, regenerate
             return self.generate_schmidt_samoa_keys()
@@ -84,7 +85,7 @@ class KeyGenerator:
             'N': str(N),
             'g': str(g),
             'key_size': self.key_size,
-            'safe_chunk_size': safe_chunk_size  # NEW: Safe chunking parameter
+            'safe_chunk_size': safe_chunk_size  # Safe chunking parameter
         }
         
         private_key = {
@@ -95,7 +96,7 @@ class KeyGenerator:
             'N': str(N),
             'g': str(g),
             'key_size': self.key_size,
-            'safe_chunk_size': safe_chunk_size  # NEW: Safe chunking parameter
+            'safe_chunk_size': safe_chunk_size  # Safe chunking parameter
         }
         
         print(f"Schmidt-Samoa keys generated (N size: {N.bit_length()} bits)")
@@ -216,7 +217,7 @@ def generate_oss_keys(key_size=2048):
 
 if __name__ == "__main__":
     # Example usage
-    print("=== Key Generation Demo ===")
+    print("=== Key Generation Demo (FINAL) ===")
     
     # Generate Schmidt-Samoa keys
     ss_pub, ss_priv = generate_schmidt_samoa_keys(2048)
@@ -237,3 +238,4 @@ if __name__ == "__main__":
     generator.save_keys_to_file(oss_priv, "keys/oss_private.json", "private")
     
     print("\n✅ Key generation completed!")
+    print("📦 Dependencies optimized: No more sympy dependency!")
